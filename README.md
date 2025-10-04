@@ -16,8 +16,8 @@ A Neovim plugin that integrates [plamo-translate-cli](https://github.com/pfnet/p
   "mozumasu/plamo-translate.nvim",
   config = true,
   keys = {
-    { "<leader>t",   nil,                         desc = "PlamoTranslate" },
-    { "<leader>tp",  "<cmd>PlamoTranslate<cr>",   desc = "Translate and show in floating window" },
+    { "<leader>t", nil, desc = "PlamoTranslate" },
+    { "<leader>tp", "<cmd>PlamoTranslate<cr>", desc = "Translate and show in floating window" },
     { "<leader>trp", "<cmd>PlamoTranslateReplace<cr>", desc = "Translate and replace selection" },
   },
 }

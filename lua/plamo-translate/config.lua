@@ -5,10 +5,17 @@ M.ns = vim.api.nvim_create_namespace("plamo-translate")
 
 ---@class plamo-translate.Config
 local defaults = {
-  -- TODO: Add default configuration options
-  -- Configuration settings for the plamo-translate command
-  -- Configuration settings for popup windows
-  -- Language configuration settings
+  cli = {
+    cmd = { "plamo-translate", "--no-stream" }, --based command
+    from = "English", -- source language
+    to = "Japanese", -- target language
+  },
+  window = {
+    -- floating window config
+    width = 0.8,
+    height = 0.6,
+    border = "rounded", -- border style: "single", "double", "rounded", "solid", "shadow"
+  },
 }
 
 local config = vim.deepcopy(defaults) ---@as plamo-translate.Config

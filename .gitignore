@@ -93,3 +93,8 @@ Sessionx.vim
 tags
 # Persistent undo
 [._]*.un~
+
+# lazy.nvim
+.tests/
+.luarc.json
+*.log

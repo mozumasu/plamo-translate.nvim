@@ -6,15 +6,32 @@ M.ns = vim.api.nvim_create_namespace("plamo-translate")
 ---@class plamo-translate.Config
 local defaults = {
   cli = {
-    cmd = { "plamo-translate", "--no-stream" }, --based command
-    from = "English", -- source language
-    to = "Japanese", -- target language
+    cmd = { "plamo-translate", "--no-stream" }, -- base command
+    from = "Auto", -- source language ("Auto" = auto detect)
+    to = "Auto", -- target language ("Auto" = auto detect)
   },
   window = {
     -- floating window config
-    width = 0.8,
-    height = 0.6,
+    position = "cursor", -- default window position: "center", "cursor", "right"
     border = "rounded", -- border style: "single", "double", "rounded", "solid", "shadow"
+    wrap = true, -- wrap long lines
+    title = " Translation ",
+    title_pos = "center", -- title position: "left", "center", "right"
+    -- Position-specific window sizes
+    positions = {
+      center = {
+        width = 0.8, -- 80% of screen for readability
+        height = 0.6, -- 60% of screen
+      },
+      cursor = {
+        width = 0.4, -- Smaller, less intrusive
+        height = 0.2, -- Compact size
+      },
+      right = {
+        width = 0.4, -- Sidebar-like width
+        height = 1.0, -- Full height
+      },
+    },
   },
 }
 

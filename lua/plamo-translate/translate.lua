@@ -44,6 +44,17 @@ function M.get_visual_selection()
   return result
 end
 
+---Detect if text contains Japanese characters
+---@param text string Text to check
+---@return boolean True if text contains Japanese characters
+local function contains_japanese(text)
+  -- Check for Hiragana (U+3040-U+309F), Katakana (U+30A0-U+30FF),
+  -- CJK Unified Ideographs (U+4E00-U+9FFF), and CJK symbols (U+3000-U+303F)
+  return text:find("[\228-\233][\128-\191][\128-\191]") ~= nil
+    or text:find("[\227][\129-\130][\128-\191]") ~= nil
+    or text:find("[\227][\131][\128-\191]") ~= nil
+end
+
 ---Translate text using plamo-translate CLI
 ---@param text string Text to translate
 ---@param callback function Callback function to receive translation result
@@ -52,13 +63,34 @@ function M.translate(text, callback)
   local cmd = {}
   vim.list_extend(cmd, config.cli.cmd)
 
-  -- Add language options only if specified (not nil or "Auto")
-  if config.cli.from and config.cli.from ~= "Auto" then
-    vim.list_extend(cmd, { "--from", config.cli.from })
+  -- Determine source and target languages
+  local from_lang = config.cli.from
+  local to_lang = config.cli.to
+
+  -- Auto-detect language direction when target is "Auto"
+  if to_lang == "Auto" or to_lang == nil then
+    if contains_japanese(text) then
+      -- Japanese to English
+      to_lang = "English"
+      if from_lang == "Auto" or from_lang == nil then
+        from_lang = "Japanese"
+      end
+    else
+      -- English to Japanese
+      to_lang = "Japanese"
+      if from_lang == "Auto" or from_lang == nil then
+        from_lang = "English"
+      end
+    end
   end
 
-  if config.cli.to and config.cli.to ~= "Auto" then
-    vim.list_extend(cmd, { "--to", config.cli.to })
+  -- Add language options only if specified (not nil or "Auto")
+  if from_lang and from_lang ~= "Auto" then
+    vim.list_extend(cmd, { "--from", from_lang })
+  end
+
+  if to_lang and to_lang ~= "Auto" then
+    vim.list_extend(cmd, { "--to", to_lang })
   end
 
   local stdout_data = {}

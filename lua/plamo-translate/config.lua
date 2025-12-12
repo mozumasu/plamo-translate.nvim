@@ -24,8 +24,8 @@ local defaults = {
         height = 0.6, -- 60% of screen
       },
       cursor = {
-        width = 0.4, -- Smaller, less intrusive
-        height = 0.2, -- Compact size
+        width = 0.5, -- 50% of screen width
+        height = 0.4, -- 40% of screen height
       },
       right = {
         width = 0.4, -- Sidebar-like width

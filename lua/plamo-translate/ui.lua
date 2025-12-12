@@ -256,7 +256,7 @@ function M.show(content, opts)
   -- Calculate window dimensions
   local vim_width = vim.o.columns
   local vim_height = vim.o.lines
-  local width = math.floor(vim_width * positions.width * 0.6) -- Smaller for single pane
+  local width = math.floor(vim_width * positions.width)
   local height = math.floor(vim_height * positions.height)
 
   -- Calculate position based on cfg.position

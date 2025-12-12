@@ -1,11 +1,47 @@
 local M = {}
 
+local translate = require("plamo-translate.translate")
+local ui = require("plamo-translate.ui")
+local util = require("plamo-translate.util")
+
+---Translate current buffer content with paragraph splitting
+---@param on_complete function Callback with (result, err, buf_info)
+---@return boolean success False if buffer is empty
+local function translate_buffer_content(on_complete)
+  local buf = vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local text = table.concat(lines, "\n")
+
+  if text == "" then
+    util.warn("Buffer is empty")
+    return false
+  end
+
+  local buf_info = {
+    buf = buf,
+    filetype = vim.bo[buf].filetype,
+    bufname = vim.fn.bufname(buf),
+  }
+
+  local paragraphs = translate.split_into_paragraphs(text)
+
+  util.info("Translating buffer (0/" .. #paragraphs .. " paragraphs)...")
+
+  translate.translate_paragraphs(
+    paragraphs,
+    function(current, total)
+      util.info("Translating buffer (" .. current .. "/" .. total .. " paragraphs)...")
+    end,
+    function(result, err)
+      on_complete(result, err, buf_info)
+    end
+  )
+
+  return true
+end
+
 ---Setup all plugin commands
 function M.setup()
-  local translate = require("plamo-translate.translate")
-  local ui = require("plamo-translate.ui")
-  local util = require("plamo-translate.util")
-
   -- PlamoTranslate: Interactive window (normal) or translate selection (visual)
   vim.api.nvim_create_user_command("PlamoTranslate", function(args)
     if args.range > 0 then
@@ -115,6 +151,65 @@ function M.setup()
     ui.close()
   end, {
     desc = "Close translation window",
+  })
+
+  -- PlamoTranslateBuffer: Translate entire buffer and show in split window
+  vim.api.nvim_create_user_command("PlamoTranslateBuffer", function()
+    translate_buffer_content(function(result, err, buf_info)
+      if err then
+        util.error("Translation failed: " .. err)
+        return
+      end
+
+      if result then
+        ui.show_split(result, {
+          filetype = buf_info.filetype,
+          original_name = buf_info.bufname,
+        })
+        util.info("Buffer translated successfully")
+      end
+    end)
+  end, {
+    desc = "Translate entire buffer and show in split window",
+  })
+
+  -- PlamoTranslateBufferReplace: Replace entire buffer with translation
+  vim.api.nvim_create_user_command("PlamoTranslateBufferReplace", function()
+    local buf = vim.api.nvim_get_current_buf()
+
+    -- Check if buffer is read-only
+    if vim.bo[buf].readonly then
+      util.error("Cannot replace: buffer is read-only")
+      return
+    end
+
+    -- Save cursor position before translation
+    local cursor = vim.api.nvim_win_get_cursor(0)
+
+    translate_buffer_content(function(result, err, buf_info)
+      if err then
+        util.error("Translation failed: " .. err)
+        return
+      end
+
+      if result then
+        -- Replace buffer content (undo is automatically supported)
+        local result_lines = vim.split(result, "\n")
+        vim.api.nvim_buf_set_lines(buf_info.buf, 0, -1, false, result_lines)
+
+        -- Restore cursor position (within bounds)
+        local new_line_count = #result_lines
+        local new_cursor = {
+          math.min(cursor[1], new_line_count),
+          cursor[2],
+        }
+        pcall(vim.api.nvim_win_set_cursor, 0, new_cursor)
+
+        util.info("Buffer replaced with translation (undo available)")
+      end
+    end)
+  end, {
+    desc = "Replace entire buffer with translation",
   })
 end
 

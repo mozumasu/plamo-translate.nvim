@@ -360,6 +360,48 @@ function M.show(content, opts)
   })
 end
 
+---Show translation result in a split window (for buffer translation)
+---@param content string Content to display
+---@param opts? table Optional display options { filetype?: string, original_name?: string }
+function M.show_split(content, opts)
+  opts = opts or {}
+
+  -- Create a new buffer (listed, not scratch)
+  local buf = vim.api.nvim_create_buf(true, false)
+
+  -- Create vertical split and switch to it
+  vim.cmd("vsplit")
+  vim.api.nvim_win_set_buf(0, buf)
+
+  -- Set content
+  local lines = vim.split(content, "\n")
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  -- Set buffer options
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].modifiable = true
+
+  -- Inherit filetype from original buffer
+  if opts.filetype and opts.filetype ~= "" then
+    vim.bo[buf].filetype = opts.filetype
+  end
+
+  -- Set buffer name with [Translation] prefix
+  local original_name = opts.original_name or "unnamed"
+  -- Extract just the filename from the path
+  local filename = vim.fn.fnamemodify(original_name, ":t")
+  if filename == "" then
+    filename = "unnamed"
+  end
+  pcall(vim.api.nvim_buf_set_name, buf, "[Translation] " .. filename)
+
+  -- Set window options
+  vim.wo[0].wrap = config.window.wrap
+
+  return buf
+end
+
 ---Close all translation windows
 function M.close()
   for _, win in ipairs({ state.input_win, state.output_win }) do

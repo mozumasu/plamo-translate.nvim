@@ -143,4 +143,83 @@ function M.translate(text, callback)
   vim.fn.chanclose(job_id, "stdin")
 end
 
+---Split text into paragraphs by empty lines
+---@param text string Text to split
+---@return table List of paragraphs (empty strings represent blank lines)
+function M.split_into_paragraphs(text)
+  local paragraphs = {}
+  local current = {}
+
+  for _, line in ipairs(vim.split(text, "\n")) do
+    if line:match("^%s*$") then -- Empty or whitespace-only line
+      if #current > 0 then
+        table.insert(paragraphs, table.concat(current, "\n"))
+        current = {}
+      end
+      table.insert(paragraphs, "") -- Preserve empty line
+    else
+      table.insert(current, line)
+    end
+  end
+
+  -- Don't forget the last paragraph
+  if #current > 0 then
+    table.insert(paragraphs, table.concat(current, "\n"))
+  end
+
+  return paragraphs
+end
+
+---Translate paragraphs sequentially
+---@param paragraphs table List of paragraphs to translate
+---@param on_progress function Progress callback (current, total)
+---@param on_complete function Completion callback (result, err)
+function M.translate_paragraphs(paragraphs, on_progress, on_complete)
+  local results = {}
+  local index = 1
+
+  -- Count non-empty paragraphs for progress display
+  local total_paragraphs = 0
+  for _, para in ipairs(paragraphs) do
+    if para ~= "" then
+      total_paragraphs = total_paragraphs + 1
+    end
+  end
+
+  local current_paragraph = 0
+
+  local function translate_next()
+    if index > #paragraphs then
+      on_complete(table.concat(results, "\n"), nil)
+      return
+    end
+
+    local para = paragraphs[index]
+
+    -- Preserve empty lines as-is
+    if para == "" then
+      table.insert(results, "")
+      index = index + 1
+      -- Use vim.schedule to avoid stack overflow with many empty lines
+      vim.schedule(translate_next)
+      return
+    end
+
+    current_paragraph = current_paragraph + 1
+    on_progress(current_paragraph, total_paragraphs)
+
+    M.translate(para, function(result, err)
+      if err then
+        on_complete(nil, err)
+        return
+      end
+      table.insert(results, result)
+      index = index + 1
+      translate_next()
+    end)
+  end
+
+  translate_next()
+end
+
 return M

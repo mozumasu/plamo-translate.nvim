@@ -94,6 +94,7 @@ function M.translate(text, callback)
   end
 
   local stdout_data = {}
+  local stderr_data = {}
 
   -- Remove debug output
   -- util.info("Running command: " .. table.concat(cmd, " "))
@@ -118,14 +119,20 @@ function M.translate(text, callback)
         callback(result, nil)
       else
         local error_msg = "Translation failed with exit code: " .. exit_code
+        if #stderr_data > 0 then
+          error_msg = error_msg .. "\n" .. table.concat(stderr_data, "\n")
+        end
         util.error(error_msg)
         callback(nil, error_msg)
       end
     end,
     on_stderr = function(_, data, _)
       if data and #data > 0 and data[1] ~= "" then
-        local stderr_msg = table.concat(data, "\n")
-        util.error("Translation stderr: " .. stderr_msg)
+        for _, line in ipairs(data) do
+          if line ~= "" then
+            table.insert(stderr_data, line)
+          end
+        end
       end
     end,
     stdin = "pipe",

@@ -8,6 +8,8 @@ A Neovim plugin that integrates [plamo-translate-cli](https://github.com/pfnet/p
 - **Quick Translation** (Visual mode)
   - Select text and translate instantly
 - **Replace selected text with translation**
+- **Inline Comment Translation** (Virtual text)
+  - Detect English comments via Treesitter and render translations next to / below each comment
 
 ## Installation
 
@@ -17,7 +19,15 @@ A Neovim plugin that integrates [plamo-translate-cli](https://github.com/pfnet/p
 {
   "mozumasu/plamo-translate.nvim",
   config = true,
-  cmd = { "PlamoTranslate", "PlamoTranslateReplace", "PlamoTranslateLine", "PlamoTranslateWord" },
+  cmd = {
+    "PlamoTranslate",
+    "PlamoTranslateReplace",
+    "PlamoTranslateLine",
+    "PlamoTranslateWord",
+    "PlamoTranslateComments",
+    "PlamoTranslateCommentsClear",
+    "PlamoTranslateCommentsToggle",
+  },
   keys = {
     -- Normal mode: interactive window
     { "<leader>tt", "<cmd>PlamoTranslate<cr>", mode = "n", desc = "Translate text (interactive)" },
@@ -27,6 +37,8 @@ A Neovim plugin that integrates [plamo-translate-cli](https://github.com/pfnet/p
     -- Normal mode: line and word
     { "<leader>tl", "<cmd>PlamoTranslateLine<cr>", mode = "n", desc = "Translate current line" },
     { "<leader>tw", "<cmd>PlamoTranslateWord<cr>", mode = "n", desc = "Translate word under cursor" },
+    -- Translate English comments in buffer as virtual text (toggle)
+    { "<leader>tv", "<cmd>PlamoTranslateCommentsToggle<cr>", mode = "n", desc = "Toggle comment translations" },
   },
 }
 ```
@@ -56,6 +68,22 @@ When you run `:PlamoTranslate` in normal mode, a split-pane window opens:
 - `y` - Copy current pane's text to clipboard (works in both panes)
 - `<Esc>` or `q` - Close the translation window
 - `<C-t>` - Translate the input text
+
+### Translate Comments as Virtual Text
+
+Translate English comments in the current buffer and render the translation as virtual text without modifying the file:
+
+- `:PlamoTranslateComments` - Translate all English comments via Treesitter and display each translation as virtual text. Single-line comments are appended at end-of-line, multi-line comments are rendered as virtual lines below the comment block.
+- `:PlamoTranslateCommentsClear` - Remove all virtual text translations.
+- `:PlamoTranslateCommentsToggle` - Toggle on/off (default keymap: `<leader>tv`).
+
+Requires a working Treesitter parser for the buffer's filetype.
+
+Virtual text uses the highlight group `PlamoTranslateVirtual` (defaults to `DiagnosticVirtualTextHint`). To customize the color:
+
+```lua
+vim.api.nvim_set_hl(0, "PlamoTranslateVirtual", { fg = "#7aa2f7", italic = true })
+```
 
 ### Configuration
 

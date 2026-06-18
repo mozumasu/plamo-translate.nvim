@@ -3,6 +3,7 @@ local M = {}
 local translate = require("plamo-translate.translate")
 local ui = require("plamo-translate.ui")
 local util = require("plamo-translate.util")
+local virtual_text = require("plamo-translate.virtual_text")
 
 ---Translate current buffer content with paragraph splitting
 ---@param on_complete function Callback with (result, err, buf_info)
@@ -210,6 +211,27 @@ function M.setup()
     end)
   end, {
     desc = "Replace entire buffer with translation",
+  })
+
+  -- PlamoTranslateComments: Translate English comments in current buffer and show as virtual text
+  vim.api.nvim_create_user_command("PlamoTranslateComments", function()
+    virtual_text.translate_comments()
+  end, {
+    desc = "Translate English comments in buffer as virtual text",
+  })
+
+  -- PlamoTranslateCommentsClear: Clear virtual text translations
+  vim.api.nvim_create_user_command("PlamoTranslateCommentsClear", function()
+    virtual_text.clear()
+  end, {
+    desc = "Clear comment virtual text translations",
+  })
+
+  -- PlamoTranslateCommentsToggle: Toggle comment virtual text translations
+  vim.api.nvim_create_user_command("PlamoTranslateCommentsToggle", function()
+    virtual_text.toggle()
+  end, {
+    desc = "Toggle comment virtual text translations",
   })
 end
 

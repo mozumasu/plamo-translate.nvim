@@ -56,6 +56,12 @@ function M.setup(opts)
       rhs = "<cmd>PlamoTranslateBufferReplace<cr>",
       desc = "Replace buffer with translation",
     },
+    {
+      mode = "n",
+      lhs = prefix .. "v",
+      rhs = "<cmd>PlamoTranslateCommentsToggle<cr>",
+      desc = "Toggle comment translations (virtual text)",
+    },
   }
 
   -- Apply mappings
@@ -74,7 +80,7 @@ end
 ---Remove default keymappings
 function M.delete()
   local prefix = "<leader>t"
-  local keys = { "t", "r", "l", "w", "c", "b", "B" }
+  local keys = { "t", "r", "l", "w", "c", "b", "B", "v" }
 
   for _, key in ipairs(keys) do
     pcall(vim.keymap.del, { "n", "v" }, prefix .. key)
@@ -94,6 +100,7 @@ function M.status()
     { key = "c", modes = { "n" }, desc = "Close translation window" },
     { key = "b", modes = { "n" }, desc = "Translate entire buffer (split)" },
     { key = "B", modes = { "n" }, desc = "Replace buffer with translation" },
+    { key = "v", modes = { "n" }, desc = "Toggle comment translations (virtual text)" },
   }
 
   print("Plamo Translate Keymapping Status:")

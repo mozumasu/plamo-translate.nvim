@@ -249,7 +249,10 @@ end
 
 ---Show translation result directly (for visual mode)
 ---@param content string Content to display
----@param opts? table Optional display options (e.g., { position = "cursor" })
+---@param opts? table Optional display options:
+---  - position: "center" | "cursor" | "right"
+---  - fit_content: boolean — size the window to its content, bounded by
+---    `config.window.fit` (overrides `positions[position]` for sizing).
 function M.show(content, opts)
   -- Close existing windows if any
   M.close()
@@ -261,8 +264,23 @@ function M.show(content, opts)
   -- Calculate window dimensions
   local vim_width = vim.o.columns
   local vim_height = vim.o.lines
-  local width = math.floor(vim_width * positions.width)
-  local height = math.floor(vim_height * positions.height)
+  local width, height
+  if opts and opts.fit_content then
+    local lines = vim.split(content, "\n", { plain = true })
+    local max_w = 0
+    for _, line in ipairs(lines) do
+      local w = vim.fn.strdisplaywidth(line)
+      if w > max_w then max_w = w end
+    end
+    local fit = cfg.fit or {}
+    local w_ratio = math.min(fit.max_width or 0.8, math.max(fit.min_width or 0.3, (max_w + 4) / vim_width))
+    local h_ratio = math.min(fit.max_height or 0.6, math.max(fit.min_height or 0.15, (#lines + 2) / vim_height))
+    width = math.floor(vim_width * w_ratio)
+    height = math.floor(vim_height * h_ratio)
+  else
+    width = math.floor(vim_width * positions.width)
+    height = math.floor(vim_height * positions.height)
+  end
 
   -- Calculate position based on cfg.position
   local row, col

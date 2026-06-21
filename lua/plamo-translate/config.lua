@@ -32,6 +32,15 @@ local defaults = {
         height = 1.0, -- Full height
       },
     },
+    -- Bounds (as ratios of screen) used when show() is called with
+    -- `fit_content = true`. The window is sized to its content but kept
+    -- within these limits so very short or very long results stay sane.
+    fit = {
+      min_width = 0.3,
+      max_width = 0.8,
+      min_height = 0.15,
+      max_height = 0.6,
+    },
   },
 }
 

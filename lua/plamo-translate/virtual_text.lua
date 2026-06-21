@@ -158,14 +158,33 @@ function M.translate_comments(buf)
     return
   end
 
-  local targets = {}
+  -- 隣接する行のコメントをグループにまとめる
+  table.sort(ranges, function(a, b)
+    return a.start_row < b.start_row
+  end)
+
+  local groups = {}
   for _, range in ipairs(ranges) do
     local stripped = strip_comment_markers(range.text)
     if is_english(stripped) then
-      range.stripped = stripped
-      table.insert(targets, range)
+      local last = groups[#groups]
+      if last and range.start_row <= last.end_row + 1 then
+        last.end_row = math.max(last.end_row, range.end_row)
+        last.end_col = range.end_col
+        last.stripped = last.stripped .. "\n" .. stripped
+      else
+        table.insert(groups, {
+          start_row = range.start_row,
+          start_col = range.start_col,
+          end_row = range.end_row,
+          end_col = range.end_col,
+          stripped = stripped,
+        })
+      end
     end
   end
+
+  local targets = groups
 
   if #targets == 0 then
     util.info("No English comments found")

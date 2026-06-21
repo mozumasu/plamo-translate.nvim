@@ -8,6 +8,16 @@ function M.setup(opts)
   -- Setup configuration
   require("plamo-translate.config").setup(opts)
 
+  -- Define default highlight groups and re-apply them on colorscheme changes
+  -- so popups stay opaque even when the user customises NormalFloat.
+  require("plamo-translate.highlights").setup()
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    group = vim.api.nvim_create_augroup("PlamoTranslateHighlights", { clear = true }),
+    callback = function()
+      require("plamo-translate.highlights").setup()
+    end,
+  })
+
   -- Register all commands
   require("plamo-translate.commands").setup()
 

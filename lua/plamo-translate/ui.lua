@@ -1,5 +1,6 @@
 local M = {}
 local config = require("plamo-translate.config")
+local highlights = require("plamo-translate.highlights")
 local util = require("plamo-translate.util")
 
 -- State management
@@ -74,6 +75,10 @@ local function create_pane_windows()
     vim.wo[state.input_win].wrap = true
     vim.wo[state.output_win].wrap = true
   end
+
+  -- Keep the popup opaque even when NormalFloat is transparent globally.
+  vim.wo[state.input_win].winhighlight = highlights.winhighlight
+  vim.wo[state.output_win].winhighlight = highlights.winhighlight
 
   -- Start with empty buffers (no headers)
   -- Input buffer starts empty and editable
@@ -315,6 +320,7 @@ function M.show(content, opts)
 
   -- Set window options
   vim.wo[win].wrap = cfg.wrap
+  vim.wo[win].winhighlight = highlights.winhighlight
 
   -- Set keymaps for closing
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {

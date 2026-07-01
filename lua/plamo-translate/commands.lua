@@ -43,9 +43,18 @@ end
 
 ---Setup all plugin commands
 function M.setup()
-  -- PlamoTranslate: Interactive window (normal) or translate selection (visual)
+  -- PlamoTranslate: Interactive window (normal) or translate selection (visual).
+  -- Optional argument "virtual" renders the result as virtual text below the
+  -- selection, matching the PlamoTranslateComments format.
   vim.api.nvim_create_user_command("PlamoTranslate", function(args)
+    local mode = (args.fargs[1] or ""):lower()
+
     if args.range > 0 then
+      if mode == "virtual" then
+        virtual_text.translate_range(nil, args.line1 - 1, args.line2 - 1)
+        return
+      end
+
       -- Visual mode: translate selection and show result
       local text = translate.get_visual_selection()
       if not text or text == "" then
@@ -67,7 +76,11 @@ function M.setup()
     end
   end, {
     range = true,
-    desc = "Open translation window (normal) or translate selection (visual)",
+    nargs = "?",
+    complete = function()
+      return { "virtual" }
+    end,
+    desc = "Open translation window (normal) or translate selection (visual). Pass 'virtual' for virtual text format.",
   })
 
   -- PlamoTranslateReplace: Replace selected text with translation
@@ -213,11 +226,18 @@ function M.setup()
     desc = "Replace entire buffer with translation",
   })
 
-  -- PlamoTranslateComments: Translate English comments in current buffer and show as virtual text
-  vim.api.nvim_create_user_command("PlamoTranslateComments", function()
-    virtual_text.translate_comments()
+  -- PlamoTranslateComments: Translate English comments in current buffer and show as virtual text.
+  -- With a visual selection, translate the selected lines and render the result
+  -- as virtual text in the same format.
+  vim.api.nvim_create_user_command("PlamoTranslateComments", function(args)
+    if args.range > 0 then
+      virtual_text.translate_range(nil, args.line1 - 1, args.line2 - 1)
+    else
+      virtual_text.translate_comments()
+    end
   end, {
-    desc = "Translate English comments in buffer as virtual text",
+    range = true,
+    desc = "Translate English comments (normal) or selected lines (visual) as virtual text",
   })
 
   -- PlamoTranslateCommentsClear: Clear virtual text translations

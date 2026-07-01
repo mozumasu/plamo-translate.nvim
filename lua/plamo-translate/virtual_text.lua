@@ -282,6 +282,60 @@ function M.translate_comments(buf)
   translate_next()
 end
 
+---Translate the given line range and render the result as virtual text
+---below the last selected line, using the same format as translate_comments.
+---@param buf? integer Defaults to current buffer
+---@param start_row integer 0-indexed start row (inclusive)
+---@param end_row integer 0-indexed end row (inclusive)
+function M.translate_range(buf, start_row, end_row)
+  buf = buf or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  if line_count == 0 then
+    util.warn("Buffer is empty")
+    return
+  end
+  if start_row < 0 then
+    start_row = 0
+  end
+  if end_row >= line_count then
+    end_row = line_count - 1
+  end
+  if end_row < start_row then
+    util.warn("Invalid range")
+    return
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(buf, start_row, end_row + 1, false)
+  local text = vim.trim(table.concat(lines, "\n"))
+  if text == "" then
+    util.warn("Selected lines are empty")
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, ns, end_row, end_row + 1)
+
+  util.info("Translating selection...")
+
+  translate.translate(text, function(result, terr)
+    vim.schedule(function()
+      if terr then
+        util.error("Translation failed: " .. tostring(terr))
+      elseif result and result ~= "" then
+        render_translation(buf, {
+          start_row = start_row,
+          end_row = end_row,
+          end_col = #(lines[#lines] or ""),
+        }, result)
+        util.info("Selection translation complete")
+      end
+    end)
+  end)
+end
+
 ---Clear all virtual text translations rendered by this module.
 ---@param buf? integer Defaults to current buffer
 function M.clear(buf)

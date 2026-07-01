@@ -11,6 +11,10 @@ local defaults = {
     to = "Auto", -- target language ("Auto" = auto detect)
   },
   window = {
+    -- Default display mode for :PlamoTranslate on a visual selection.
+    -- "popup"   : show result in a floating window (default)
+    -- "virtual" : render result as virtual text below the selection
+    default_display = "popup",
     -- floating window config
     position = "cursor", -- default window position: "center", "cursor", "right"
     border = "rounded", -- border style: "single", "double", "rounded", "solid", "shadow"

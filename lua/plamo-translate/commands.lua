@@ -1,5 +1,6 @@
 local M = {}
 
+local config = require("plamo-translate.config")
 local translate = require("plamo-translate.translate")
 local ui = require("plamo-translate.ui")
 local util = require("plamo-translate.util")
@@ -48,6 +49,9 @@ function M.setup()
   -- selection, matching the PlamoTranslateComments format.
   vim.api.nvim_create_user_command("PlamoTranslate", function(args)
     local mode = (args.fargs[1] or ""):lower()
+    if mode == "" then
+      mode = (config.window.default_display or "popup"):lower()
+    end
 
     if args.range > 0 then
       if mode == "virtual" then
@@ -78,7 +82,7 @@ function M.setup()
     range = true,
     nargs = "?",
     complete = function()
-      return { "virtual" }
+      return { "virtual", "popup" }
     end,
     desc = "Open translation window (normal) or translate selection (visual). Pass 'virtual' for virtual text format.",
   })

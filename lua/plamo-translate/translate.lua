@@ -136,6 +136,9 @@ function M.translate(text, callback)
       end
     end,
     stdin = "pipe",
+    env = {
+      TMPDIR = vim.env.TMPDIR ~= nil and vim.env.TMPDIR ~= "" and vim.env.TMPDIR or "/tmp",
+    },
   })
 
   if job_id <= 0 then

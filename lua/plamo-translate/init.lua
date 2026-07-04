@@ -21,15 +21,9 @@ function M.setup(opts)
   -- Register all commands
   require("plamo-translate.commands").setup()
 
-  -- Setup keymaps if requested
+  -- Setup keymaps if requested (true = defaults, table = custom options)
   if opts.keymaps then
-    if opts.keymaps == true then
-      -- Use default keymaps
-      require("plamo-translate.keymaps").setup()
-    elseif type(opts.keymaps) == "table" then
-      -- Use custom keymap options
-      require("plamo-translate.keymaps").setup(opts.keymaps)
-    end
+    require("plamo-translate.keymaps").setup(type(opts.keymaps) == "table" and opts.keymaps or nil)
   end
 end
 

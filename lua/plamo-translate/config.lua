@@ -48,7 +48,7 @@ local defaults = {
   },
 }
 
-local config = vim.deepcopy(defaults) ---@as plamo-translate.Config
+local config = vim.deepcopy(defaults) --[[@as plamo-translate.Config]]
 
 ---@param opts? plamo-translate.Config
 function M.setup(opts)

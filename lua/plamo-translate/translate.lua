@@ -2,46 +2,20 @@ local M = {}
 local config = require("plamo-translate.config")
 local util = require("plamo-translate.util")
 
----Get selected text in visual mode
+---Get selected text in visual mode (requires Neovim 0.10+)
 ---@return string
 function M.get_visual_selection()
-  -- Get visual selection marks
   local start_pos = vim.fn.getpos("'<")
   local end_pos = vim.fn.getpos("'>")
 
-  -- Get selected lines
-  local start_line = start_pos[2]
-  local end_line = end_pos[2]
-
-  -- Get text from buffer
-  local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
-
-  -- Handle partial selection on first and last lines
-  if #lines > 0 then
-    local start_col = start_pos[3]
-    local end_col = end_pos[3]
-
-    -- Check if it's a line-wise selection (V mode)
-    -- vim.v.maxcol (2147483647) indicates selection to end of line
-    local is_line_selection = end_col >= 2147483647
-
-    if not is_line_selection then
-      -- Character-wise or block-wise selection
-      if #lines == 1 then
-        -- Single line: extract from start_col to end_col
-        lines[1] = string.sub(lines[1], start_col, end_col)
-      else
-        -- Multiple lines: trim first and last lines
-        lines[1] = string.sub(lines[1], start_col)
-        lines[#lines] = string.sub(lines[#lines], 1, end_col)
-      end
-    end
-    -- For line-wise selection, keep full lines as is
+  -- visualmode() is "" until visual mode has been used at least once
+  local mode = vim.fn.visualmode()
+  if mode == "" then
+    mode = "v"
   end
 
-  -- Concatenate lines with newlines
-  local result = table.concat(lines, "\n")
-  return result
+  local lines = vim.fn.getregion(start_pos, end_pos, { type = mode })
+  return table.concat(lines, "\n")
 end
 
 ---Detect if text contains Japanese characters

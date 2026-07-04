@@ -126,7 +126,7 @@ local function translate_input()
 
   -- Translate
   translate.translate(text, function(result, err)
-    if not vim.api.nvim_buf_is_valid(state.output_buf) then
+    if not state.output_buf or not vim.api.nvim_buf_is_valid(state.output_buf) then
       return
     end
 

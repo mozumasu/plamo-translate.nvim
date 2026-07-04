@@ -6,8 +6,11 @@ local ui = require("plamo-translate.ui")
 local util = require("plamo-translate.util")
 local virtual_text = require("plamo-translate.virtual_text")
 
----Translate current buffer content with paragraph splitting
----@param on_complete function Callback with (result, err, buf_info)
+---Translate current buffer content with paragraph splitting.
+---Progress is reported through a single self-replacing notification; the
+---handle is passed to on_complete so callers can reuse it for the final
+---message.
+---@param on_complete function Callback with (result, err, buf_info, progress)
 ---@return boolean success False if buffer is empty
 local function translate_buffer_content(on_complete)
   local buf = vim.api.nvim_get_current_buf()
@@ -26,16 +29,17 @@ local function translate_buffer_content(on_complete)
   }
 
   local paragraphs = translate.split_into_paragraphs(text)
+  local progress = util.progress("plamo-translate-buffer")
 
-  util.info("Translating buffer (0/" .. #paragraphs .. " paragraphs)...")
+  progress.update("Translating buffer...")
 
   translate.translate_paragraphs(
     paragraphs,
     function(current, total)
-      util.info("Translating buffer (" .. current .. "/" .. total .. " paragraphs)...")
+      progress.update(string.format("Translating buffer (%d/%d paragraphs)...", current, total))
     end,
     function(result, err)
-      on_complete(result, err, buf_info)
+      on_complete(result, err, buf_info, progress)
     end
   )
 
@@ -184,9 +188,9 @@ function M.setup()
 
   -- PlamoTranslateBuffer: Translate entire buffer and show in split window
   vim.api.nvim_create_user_command("PlamoTranslateBuffer", function()
-    translate_buffer_content(function(result, err, buf_info)
+    translate_buffer_content(function(result, err, buf_info, progress)
       if err then
-        util.error("Translation failed: " .. err)
+        progress.update("Translation failed: " .. err, vim.log.levels.ERROR)
         return
       end
 
@@ -195,7 +199,7 @@ function M.setup()
           filetype = buf_info.filetype,
           original_name = buf_info.bufname,
         })
-        util.info("Buffer translated successfully")
+        progress.update("Buffer translated successfully")
       end
     end)
   end, {
@@ -216,19 +220,19 @@ function M.setup()
     local cursor = vim.api.nvim_win_get_cursor(0)
     local tick = vim.api.nvim_buf_get_changedtick(buf)
 
-    translate_buffer_content(function(result, err, buf_info)
+    translate_buffer_content(function(result, err, buf_info, progress)
       if err then
-        util.error("Translation failed: " .. err)
+        progress.update("Translation failed: " .. err, vim.log.levels.ERROR)
         return
       end
 
       if result then
         if not vim.api.nvim_buf_is_valid(buf_info.buf) then
-          util.warn("Buffer was closed before translation finished")
+          progress.update("Buffer was closed before translation finished", vim.log.levels.WARN)
           return
         end
         if vim.api.nvim_buf_get_changedtick(buf_info.buf) ~= tick then
-          util.warn("Buffer was modified during translation; replace aborted")
+          progress.update("Buffer was modified during translation; replace aborted", vim.log.levels.WARN)
           return
         end
         -- Replace buffer content (undo is automatically supported)
@@ -245,7 +249,7 @@ function M.setup()
           pcall(vim.api.nvim_win_set_cursor, win, new_cursor)
         end
 
-        util.info("Buffer replaced with translation (undo available)")
+        progress.update("Buffer replaced with translation (undo available)")
       end
     end)
   end, {

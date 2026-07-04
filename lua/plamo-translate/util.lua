@@ -23,6 +23,34 @@ function M.info(msg)
   M.notify(msg, vim.log.levels.INFO)
 end
 
+---Create a progress notifier that overwrites its own notification instead of
+---stacking new ones. nvim-notify replaces via opts.replace (previous record),
+---snacks.nvim via opts.id; the built-in vim.notify ignores both and falls
+---back to one message per update.
+---@param id string Stable identifier for backends that replace by id
+---@return { update: fun(msg: string, level?: vim.log.levels) }
+function M.progress(id)
+  local last
+  local handle = {}
+
+  ---@param msg string
+  ---@param level? vim.log.levels
+  function handle.update(msg, level)
+    vim.schedule(function()
+      local ok, ret = pcall(vim.notify, msg, level or vim.log.levels.INFO, {
+        title = "PlamoTranslate",
+        id = id,
+        replace = last,
+      })
+      if ok then
+        last = ret
+      end
+    end)
+  end
+
+  return handle
+end
+
 ---Detect if text contains Japanese characters
 ---(Hiragana, Katakana, CJK ideographs; byte-pattern heuristic)
 ---@param text string

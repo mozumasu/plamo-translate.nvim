@@ -65,6 +65,59 @@ describe("util module", function()
     end)
   end)
 
+  describe("progress", function()
+    local original_notify, original_schedule
+    local called
+
+    before_each(function()
+      original_notify = vim.notify
+      original_schedule = vim.schedule
+      called = {}
+
+      ---@diagnostic disable-next-line: duplicate-set-field
+      vim.notify = function(msg, level, opts)
+        table.insert(called, { msg = msg, level = level, opts = opts })
+        return { record = #called } -- fake nvim-notify record
+      end
+      ---@diagnostic disable-next-line: duplicate-set-field
+      vim.schedule = function(cb)
+        cb()
+      end
+    end)
+
+    after_each(function()
+      vim.notify = original_notify
+      vim.schedule = original_schedule
+    end)
+
+    it("chains replace across updates for nvim-notify backends", function()
+      local progress = Util.progress("test-progress")
+      progress.update("step 1")
+      progress.update("step 2")
+      progress.update("done")
+
+      assert.are.equal(3, #called)
+      assert.is_nil(called[1].opts.replace)
+      assert.are.same({ record = 1 }, called[2].opts.replace)
+      assert.are.same({ record = 2 }, called[3].opts.replace)
+    end)
+
+    it("passes a stable id for snacks-style backends", function()
+      local progress = Util.progress("test-progress")
+      progress.update("step 1")
+      progress.update("step 2")
+
+      assert.are.equal("test-progress", called[1].opts.id)
+      assert.are.equal("test-progress", called[2].opts.id)
+    end)
+
+    it("uses the given log level", function()
+      local progress = Util.progress("test-progress")
+      progress.update("boom", vim.log.levels.ERROR)
+      assert.are.equal(vim.log.levels.ERROR, called[1].level)
+    end)
+  end)
+
   describe("contains_japanese", function()
     it("detects hiragana", function()
       assert.is_true(Util.contains_japanese("これはテストです"))

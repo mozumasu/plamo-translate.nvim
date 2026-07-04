@@ -14,7 +14,7 @@ local uv = vim.uv or vim.loop
 -- stripped text -> translation result
 local cache = {}
 
----@type table<integer, { active: boolean, generation: integer, timer: uv_timer_t?, augroup: integer? }>
+---@type table<integer, { active: boolean, generation: integer, timer: uv_timer_t?, augroup: integer?, job: integer? }>
 local state = {}
 
 local REFRESH_DEBOUNCE_MS = 300
@@ -182,6 +182,12 @@ local function render_groups(buf, groups, opts)
   st.generation = st.generation + 1
   local gen = st.generation
 
+  -- Stop the CLI job of the previous generation, if still running
+  if st.job then
+    translate.cancel(st.job)
+    st.job = nil
+  end
+
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 
   local pending = {}
@@ -224,11 +230,12 @@ local function render_groups(buf, groups, opts)
     end
 
     local group = pending[index]
-    translate.translate(group.stripped, function(result, terr)
+    local job = translate.translate(group.stripped, function(result, terr)
       vim.schedule(function()
         if is_stale() then
           return
         end
+        state[buf].job = nil
         if terr then
           util.warn("Skipped a comment due to error: " .. tostring(terr))
         elseif result and result ~= "" then
@@ -239,6 +246,9 @@ local function render_groups(buf, groups, opts)
         translate_next()
       end)
     end)
+    if not is_stale() then
+      state[buf].job = job
+    end
   end
 
   translate_next()
@@ -269,6 +279,10 @@ local function detach(buf)
     return
   end
   st.active = false
+  if st.job then
+    translate.cancel(st.job)
+    st.job = nil
+  end
   if st.timer then
     st.timer:stop()
     if not st.timer:is_closing() then

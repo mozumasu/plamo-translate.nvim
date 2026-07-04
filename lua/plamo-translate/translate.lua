@@ -18,9 +18,22 @@ function M.get_visual_selection()
   return table.concat(lines, "\n")
 end
 
+-- Jobs cancelled via M.cancel(); their on_exit reports "cancelled" silently
+local cancelled = {}
+
+---Cancel a running translation job started by M.translate()
+---@param job_id integer|nil
+function M.cancel(job_id)
+  if job_id and job_id > 0 then
+    cancelled[job_id] = true
+    pcall(vim.fn.jobstop, job_id)
+  end
+end
+
 ---Translate text using plamo-translate CLI
 ---@param text string Text to translate
 ---@param callback function Callback function to receive translation result
+---@return integer|nil job_id Job ID usable with M.cancel(), nil on startup failure
 function M.translate(text, callback)
   -- Build command array by combining base command with arguments
   local cmd = {}
@@ -74,7 +87,12 @@ function M.translate(text, callback)
         append_chunk(stdout_parts, data)
       end
     end,
-    on_exit = function(_, exit_code, _)
+    on_exit = function(id, exit_code, _)
+      if cancelled[id] then
+        cancelled[id] = nil
+        callback(nil, "cancelled")
+        return
+      end
       if exit_code == 0 then
         local result = table.concat(stdout_parts, "\n"):gsub("\n+$", "")
         if result == "" then
@@ -106,12 +124,14 @@ function M.translate(text, callback)
     local error_msg = "Failed to start translation job"
     util.error(error_msg)
     callback(nil, error_msg)
-    return
+    return nil
   end
 
   -- Send text to stdin
   vim.fn.chansend(job_id, text)
   vim.fn.chanclose(job_id, "stdin")
+
+  return job_id
 end
 
 ---Split text into paragraphs by empty lines

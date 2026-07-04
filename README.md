@@ -123,5 +123,5 @@ require("plamo-translate").setup({
 
 ## Requirements
 
-- Neovim 0.8.0+
+- Neovim 0.10.0+
 - [plamo-translate-cli](https://github.com/pfnet/plamo-translate-cli) installed and available in PATH

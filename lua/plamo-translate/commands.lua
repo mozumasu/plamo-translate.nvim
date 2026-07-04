@@ -33,15 +33,11 @@ local function translate_buffer_content(on_complete)
 
   progress.update("Translating buffer...")
 
-  translate.translate_paragraphs(
-    paragraphs,
-    function(current, total)
-      progress.update(string.format("Translating buffer (%d/%d paragraphs)...", current, total))
-    end,
-    function(result, err)
-      on_complete(result, err, buf_info, progress)
-    end
-  )
+  translate.translate_paragraphs(paragraphs, function(current, total)
+    progress.update(string.format("Translating buffer (%d/%d paragraphs)...", current, total))
+  end, function(result, err)
+    on_complete(result, err, buf_info, progress)
+  end)
 
   return true
 end
@@ -286,4 +282,3 @@ function M.setup()
 end
 
 return M
-

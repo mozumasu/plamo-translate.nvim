@@ -90,17 +90,20 @@ function M.setup()
   -- PlamoTranslateReplace: Replace selected text with translation
   vim.api.nvim_create_user_command("PlamoTranslateReplace", function(args)
     -- Get the visual selection from the command range
+    local buf = vim.api.nvim_get_current_buf()
     local start_line = args.line1
     local end_line = args.line2
 
     -- Get the actual text from the buffer using the range
-    local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
+    local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
     local text = table.concat(lines, "\n")
 
     if not text or text == "" then
       util.warn("No text selected")
       return
     end
+
+    local tick = vim.api.nvim_buf_get_changedtick(buf)
 
     util.info("Translating and replacing...")
     translate.translate(text, function(result, err)
@@ -110,9 +113,17 @@ function M.setup()
       end
 
       if result then
+        if not vim.api.nvim_buf_is_valid(buf) then
+          util.warn("Buffer was closed before translation finished")
+          return
+        end
+        if vim.api.nvim_buf_get_changedtick(buf) ~= tick then
+          util.warn("Buffer was modified during translation; replace aborted")
+          return
+        end
         -- Replace the selected text with translation
         local result_lines = vim.split(result, "\n")
-        vim.api.nvim_buf_set_lines(0, start_line - 1, end_line, false, result_lines)
+        vim.api.nvim_buf_set_lines(buf, start_line - 1, end_line, false, result_lines)
         util.info("Text replaced with translation")
       end
     end)
@@ -201,8 +212,9 @@ function M.setup()
       return
     end
 
-    -- Save cursor position before translation
+    -- Save cursor position and change state before translation
     local cursor = vim.api.nvim_win_get_cursor(0)
+    local tick = vim.api.nvim_buf_get_changedtick(buf)
 
     translate_buffer_content(function(result, err, buf_info)
       if err then
@@ -211,17 +223,27 @@ function M.setup()
       end
 
       if result then
+        if not vim.api.nvim_buf_is_valid(buf_info.buf) then
+          util.warn("Buffer was closed before translation finished")
+          return
+        end
+        if vim.api.nvim_buf_get_changedtick(buf_info.buf) ~= tick then
+          util.warn("Buffer was modified during translation; replace aborted")
+          return
+        end
         -- Replace buffer content (undo is automatically supported)
         local result_lines = vim.split(result, "\n")
         vim.api.nvim_buf_set_lines(buf_info.buf, 0, -1, false, result_lines)
 
-        -- Restore cursor position (within bounds)
-        local new_line_count = #result_lines
-        local new_cursor = {
-          math.min(cursor[1], new_line_count),
-          cursor[2],
-        }
-        pcall(vim.api.nvim_win_set_cursor, 0, new_cursor)
+        -- Restore cursor position (within bounds) in a window showing the buffer
+        local win = vim.fn.bufwinid(buf_info.buf)
+        if win ~= -1 then
+          local new_cursor = {
+            math.min(cursor[1], #result_lines),
+            cursor[2],
+          }
+          pcall(vim.api.nvim_win_set_cursor, win, new_cursor)
+        end
 
         util.info("Buffer replaced with translation (undo available)")
       end

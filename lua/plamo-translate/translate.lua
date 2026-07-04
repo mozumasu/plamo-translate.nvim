@@ -18,17 +18,6 @@ function M.get_visual_selection()
   return table.concat(lines, "\n")
 end
 
----Detect if text contains Japanese characters
----@param text string Text to check
----@return boolean True if text contains Japanese characters
-local function contains_japanese(text)
-  -- Check for Hiragana (U+3040-U+309F), Katakana (U+30A0-U+30FF),
-  -- CJK Unified Ideographs (U+4E00-U+9FFF), and CJK symbols (U+3000-U+303F)
-  return text:find("[\228-\233][\128-\191][\128-\191]") ~= nil
-    or text:find("[\227][\129-\130][\128-\191]") ~= nil
-    or text:find("[\227][\131][\128-\191]") ~= nil
-end
-
 ---Translate text using plamo-translate CLI
 ---@param text string Text to translate
 ---@param callback function Callback function to receive translation result
@@ -43,7 +32,7 @@ function M.translate(text, callback)
 
   -- Auto-detect language direction when target is "Auto"
   if to_lang == "Auto" or to_lang == nil then
-    if contains_japanese(text) then
+    if util.contains_japanese(text) then
       -- Japanese to English
       to_lang = "English"
       if from_lang == "Auto" or from_lang == nil then

@@ -32,30 +32,6 @@ vim.api.nvim_create_autocmd("ColorScheme", {
   callback = ensure_highlight,
 })
 
----Strip common comment markers (//, /*, #, --, ;, <!-- -->, """ etc.) from text
----@param text string
----@return string
-local function strip_comment_markers(text)
-  text = text:gsub("^/%*+", ""):gsub("%*+/$", "")
-  text = text:gsub("^<!%-%-", ""):gsub("%-%->$", "")
-  text = text:gsub('^"""', ""):gsub('"""$', "")
-  text = text:gsub("^'''", ""):gsub("'''$", "")
-
-  local lines = vim.split(text, "\n")
-  for i, line in ipairs(lines) do
-    lines[i] = line:gsub("^%s*([/#;%-%*]+)%s*", "")
-  end
-
-  while #lines > 0 and lines[1]:match("^%s*$") do
-    table.remove(lines, 1)
-  end
-  while #lines > 0 and lines[#lines]:match("^%s*$") do
-    table.remove(lines)
-  end
-
-  return vim.trim(table.concat(lines, "\n"))
-end
-
 ---Heuristic: text is "English" when it has no Japanese characters and contains alphabetic content
 ---@param text string
 ---@return boolean
@@ -63,10 +39,7 @@ local function is_english(text)
   if text == "" then
     return false
   end
-  local has_japanese = text:find("[\228-\233][\128-\191][\128-\191]") ~= nil
-    or text:find("[\227][\129-\130][\128-\191]") ~= nil
-    or text:find("[\227][\131][\128-\191]") ~= nil
-  if has_japanese then
+  if util.contains_japanese(text) then
     return false
   end
   return text:find("[A-Za-z]") ~= nil
@@ -117,68 +90,6 @@ local function find_comment_ranges(buf)
   return results, nil
 end
 
----Append chars from src into result lines, breaking when width exceeds max_width
----@param result string[]
----@param src string
----@param max_width integer
-local function break_by_char(result, src, max_width)
-  local current = ""
-  -- iterate over UTF-8 characters
-  for char in src:gmatch("[%z\1-\127\194-\253][\128-\191]*") do
-    local candidate = current .. char
-    if vim.fn.strdisplaywidth(candidate) <= max_width then
-      current = candidate
-    else
-      if current ~= "" then
-        table.insert(result, current)
-      end
-      current = char
-    end
-  end
-  if current ~= "" then
-    table.insert(result, current)
-  end
-end
-
----Wrap a string to fit within max_width, breaking at spaces then by character
----@param text string
----@param max_width integer
----@return string[]
-local function wrap_text(text, max_width)
-  local result = {}
-  for _, line in ipairs(vim.split(text, "\n")) do
-    if vim.fn.strdisplaywidth(line) <= max_width then
-      table.insert(result, line)
-    else
-      local current = ""
-      for _, word in ipairs(vim.split(line, " ")) do
-        -- word itself is wider than max_width: break it by character
-        if vim.fn.strdisplaywidth(word) > max_width then
-          if current ~= "" then
-            table.insert(result, current)
-            current = ""
-          end
-          break_by_char(result, word, max_width)
-        else
-          local candidate = current == "" and word or (current .. " " .. word)
-          if vim.fn.strdisplaywidth(candidate) <= max_width then
-            current = candidate
-          else
-            if current ~= "" then
-              table.insert(result, current)
-            end
-            current = word
-          end
-        end
-      end
-      if current ~= "" then
-        table.insert(result, current)
-      end
-    end
-  end
-  return result
-end
-
 ---Render translation result as virtual text for one comment range
 ---@param buf integer
 ---@param namespace integer
@@ -197,7 +108,7 @@ local function render_translation(buf, namespace, range, result)
   -- prefix "» "(2文字) 分も引く
   local wrap_width = math.max(40, win_width - textoff - 2)
 
-  local wrapped = wrap_text(result, wrap_width)
+  local wrapped = util.wrap_text(result, wrap_width)
 
   local last_row = range.end_row
   if range.end_col == 0 and last_row > range.start_row then
@@ -234,7 +145,7 @@ local function collect_english_groups(buf)
 
   local groups = {}
   for _, range in ipairs(ranges) do
-    local stripped = strip_comment_markers(range.text)
+    local stripped = util.strip_comment_markers(range.text)
     if is_english(stripped) then
       local last = groups[#groups]
       if last and range.start_row <= last.end_row + 1 then

@@ -56,46 +56,44 @@ function M.translate(text, callback)
     vim.list_extend(cmd, { "--to", to_lang })
   end
 
-  local stdout_data = {}
-  local stderr_data = {}
+  -- Channel callbacks deliver partial lines: the first element of each chunk
+  -- continues the last element of the previous one, "" marks a line boundary.
+  local stdout_parts = { "" }
+  local stderr_parts = { "" }
 
-  -- Remove debug output
-  -- util.info("Running command: " .. table.concat(cmd, " "))
+  local function append_chunk(parts, data)
+    parts[#parts] = parts[#parts] .. data[1]
+    for i = 2, #data do
+      table.insert(parts, data[i])
+    end
+  end
 
   local job_id = vim.fn.jobstart(cmd, {
     on_stdout = function(_, data, _)
       if data and #data > 0 then
-        -- Filter out empty strings but keep all actual content
-        for _, line in ipairs(data) do
-          if line ~= "" then
-            table.insert(stdout_data, line)
-          end
-        end
+        append_chunk(stdout_parts, data)
       end
     end,
     on_exit = function(_, exit_code, _)
       if exit_code == 0 then
-        local result = table.concat(stdout_data, "\n")
+        local result = table.concat(stdout_parts, "\n"):gsub("\n+$", "")
         if result == "" then
           util.warn("Translation succeeded but no output received")
         end
         callback(result, nil)
       else
         local error_msg = "Translation failed with exit code: " .. exit_code
-        if #stderr_data > 0 then
-          error_msg = error_msg .. "\n" .. table.concat(stderr_data, "\n")
+        local stderr_text = vim.trim(table.concat(stderr_parts, "\n"))
+        if stderr_text ~= "" then
+          error_msg = error_msg .. "\n" .. stderr_text
         end
         util.error(error_msg)
         callback(nil, error_msg)
       end
     end,
     on_stderr = function(_, data, _)
-      if data and #data > 0 and data[1] ~= "" then
-        for _, line in ipairs(data) do
-          if line ~= "" then
-            table.insert(stderr_data, line)
-          end
-        end
+      if data and #data > 0 then
+        append_chunk(stderr_parts, data)
       end
     end,
     stdin = "pipe",

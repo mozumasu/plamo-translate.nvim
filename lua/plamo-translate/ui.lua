@@ -146,95 +146,54 @@ local function translate_input()
   end)
 end
 
+---Copy the full content of a buffer to the unnamed and system clipboards
+---@param buf integer
+---@param message string
+local function copy_buffer(buf, message)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local result = table.concat(lines, "\n")
+  vim.fn.setreg('"', result)
+  vim.fn.setreg("+", result)
+  util.info(message)
+end
+
 ---Set up key mappings for the translation window
 local function setup_keymaps()
-  -- Translate on Ctrl+T
-  vim.api.nvim_buf_set_keymap(state.input_buf, "n", "<C-t>", "", {
-    callback = translate_input,
-    noremap = true,
-    silent = true,
-    desc = "Translate input text",
-  })
-
-  vim.api.nvim_buf_set_keymap(state.input_buf, "i", "<C-t>", "", {
-    callback = translate_input,
-    noremap = true,
-    silent = true,
-    desc = "Translate input text",
-  })
-
-  -- Close windows on Escape or q
-  local close_callback = function()
-    M.close()
+  local function map(buf, mode, lhs, fn, desc)
+    vim.keymap.set(mode, lhs, fn, { buffer = buf, silent = true, desc = desc })
   end
+
+  -- Translate on Ctrl+T
+  map(state.input_buf, { "n", "i" }, "<C-t>", translate_input, "Translate input text")
 
   for _, buf in ipairs({ state.input_buf, state.output_buf }) do
     if buf and vim.api.nvim_buf_is_valid(buf) then
-      vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
-        callback = close_callback,
-        noremap = true,
-        silent = true,
-        desc = "Close translation window",
-      })
-
-      vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
-        callback = close_callback,
-        noremap = true,
-        silent = true,
-        desc = "Close translation window",
-      })
+      map(buf, "n", "<Esc>", M.close, "Close translation window")
+      map(buf, "n", "q", M.close, "Close translation window")
     end
   end
 
   -- Switch between windows with Tab
-  vim.api.nvim_buf_set_keymap(state.input_buf, "n", "<Tab>", "", {
-    callback = function()
-      if vim.api.nvim_win_is_valid(state.output_win) then
-        vim.api.nvim_set_current_win(state.output_win)
-      end
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Switch to output window",
-  })
+  map(state.input_buf, "n", "<Tab>", function()
+    if vim.api.nvim_win_is_valid(state.output_win) then
+      vim.api.nvim_set_current_win(state.output_win)
+    end
+  end, "Switch to output window")
 
-  vim.api.nvim_buf_set_keymap(state.output_buf, "n", "<Tab>", "", {
-    callback = function()
-      if vim.api.nvim_win_is_valid(state.input_win) then
-        vim.api.nvim_set_current_win(state.input_win)
-      end
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Switch to input window",
-  })
+  map(state.output_buf, "n", "<Tab>", function()
+    if vim.api.nvim_win_is_valid(state.input_win) then
+      vim.api.nvim_set_current_win(state.input_win)
+    end
+  end, "Switch to input window")
 
   -- Copy text with y in both buffers
-  vim.api.nvim_buf_set_keymap(state.input_buf, "n", "y", "", {
-    callback = function()
-      local lines = vim.api.nvim_buf_get_lines(state.input_buf, 0, -1, false) -- Get all text
-      local result = table.concat(lines, "\n")
-      vim.fn.setreg('"', result)
-      vim.fn.setreg("+", result) -- Also copy to system clipboard
-      util.info("Input text copied to clipboard")
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Copy input text to clipboard",
-  })
+  map(state.input_buf, "n", "y", function()
+    copy_buffer(state.input_buf, "Input text copied to clipboard")
+  end, "Copy input text to clipboard")
 
-  vim.api.nvim_buf_set_keymap(state.output_buf, "n", "y", "", {
-    callback = function()
-      local lines = vim.api.nvim_buf_get_lines(state.output_buf, 0, -1, false) -- Get all text
-      local result = table.concat(lines, "\n")
-      vim.fn.setreg('"', result)
-      vim.fn.setreg("+", result) -- Also copy to system clipboard
-      util.info("Translation copied to clipboard")
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Copy translation to clipboard",
-  })
+  map(state.output_buf, "n", "y", function()
+    copy_buffer(state.output_buf, "Translation copied to clipboard")
+  end, "Copy translation to clipboard")
 end
 
 ---Show the interactive translation window (for normal mode)
@@ -340,45 +299,19 @@ function M.show(content, opts)
   vim.wo[win].wrap = cfg.wrap
   vim.wo[win].winhighlight = highlights.winhighlight
 
-  -- Set keymaps for closing
-  vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
-    callback = function()
-      if vim.api.nvim_win_is_valid(win) then
-        vim.api.nvim_win_close(win, true)
-      end
-      -- Clear state
-      state.output_win = nil
-      state.output_buf = nil
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Close translation window",
-  })
+  -- Set keymaps for closing and copying
+  for _, lhs in ipairs({ "q", "<Esc>" }) do
+    vim.keymap.set("n", lhs, M.close, {
+      buffer = buf,
+      silent = true,
+      desc = "Close translation window",
+    })
+  end
 
-  vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
-    callback = function()
-      if vim.api.nvim_win_is_valid(win) then
-        vim.api.nvim_win_close(win, true)
-      end
-      -- Clear state
-      state.output_win = nil
-      state.output_buf = nil
-    end,
-    noremap = true,
-    silent = true,
-    desc = "Close translation window",
-  })
-
-  -- Copy with y
-  vim.api.nvim_buf_set_keymap(buf, "n", "y", "", {
-    callback = function()
-      local result_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-      local result = table.concat(result_lines, "\n")
-      vim.fn.setreg('"', result)
-      vim.fn.setreg("+", result) -- Also copy to system clipboard
-      util.info("Translation copied to clipboard")
-    end,
-    noremap = true,
+  vim.keymap.set("n", "y", function()
+    copy_buffer(buf, "Translation copied to clipboard")
+  end, {
+    buffer = buf,
     silent = true,
     desc = "Copy translation to clipboard",
   })

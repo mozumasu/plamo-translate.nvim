@@ -1,5 +1,8 @@
 local M = {}
 
+-- Mappings applied by the last setup() call; delete()/status() operate on these
+local applied = {}
+
 ---Setup default keymappings for the plugin
 ---@param opts? table Optional configuration for keymaps
 function M.setup(opts)
@@ -73,51 +76,35 @@ function M.setup(opts)
     })
   end
 
+  applied = mappings
+
   -- Return the mappings for reference
   return mappings
 end
 
----Remove default keymappings
+---Remove keymappings applied by setup()
 function M.delete()
-  local prefix = "<leader>t"
-  local keys = { "t", "r", "l", "w", "c", "b", "B", "v" }
-
-  for _, key in ipairs(keys) do
-    pcall(vim.keymap.del, { "n", "v" }, prefix .. key)
-    pcall(vim.keymap.del, "n", prefix .. key)
-    pcall(vim.keymap.del, "v", prefix .. key)
+  for _, mapping in ipairs(applied) do
+    pcall(vim.keymap.del, mapping.mode, mapping.lhs)
   end
+  applied = {}
 end
 
 ---Print current keymapping status
 function M.status()
-  local prefix = "<leader>t"
-  local keys = {
-    { key = "t", modes = { "n", "v" }, desc = "Translate text" },
-    { key = "r", modes = { "v" }, desc = "Replace with translation" },
-    { key = "l", modes = { "n" }, desc = "Translate current line" },
-    { key = "w", modes = { "n" }, desc = "Translate word under cursor" },
-    { key = "c", modes = { "n" }, desc = "Close translation window" },
-    { key = "b", modes = { "n" }, desc = "Translate entire buffer (split)" },
-    { key = "B", modes = { "n" }, desc = "Replace buffer with translation" },
-    { key = "v", modes = { "n" }, desc = "Toggle comment translations (virtual text)" },
-  }
-
   print("Plamo Translate Keymapping Status:")
   print("Leader key: " .. (vim.g.mapleader or "not set"))
   print("")
 
-  for _, item in ipairs(keys) do
-    local found = false
-    for _, mode in ipairs(item.modes) do
-      local ok, _ = pcall(vim.fn.maparg, prefix .. item.key, mode)
-      if ok and vim.fn.maparg(prefix .. item.key, mode) ~= "" then
-        found = true
-        break
-      end
-    end
+  if #applied == 0 then
+    print("  No keymaps applied (keymaps.setup() has not been called)")
+    return
+  end
+
+  for _, mapping in ipairs(applied) do
+    local found = vim.fn.maparg(mapping.lhs, mapping.mode) ~= ""
     local status = found and "✓" or "✗"
-    print(string.format("  %s %s%s - %s", status, prefix, item.key, item.desc))
+    print(string.format("  %s [%s] %s - %s", status, mapping.mode, mapping.lhs, mapping.desc))
   end
 end
 

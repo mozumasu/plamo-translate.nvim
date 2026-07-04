@@ -1,0 +1,180 @@
+*plamo-translate.txt*  Translate text with plamo-translate-cli
+
+Author: mozumasu
+License: same as the plugin repository
+
+==============================================================================
+CONTENTS                                             *plamo-translate-contents*
+
+  1. Introduction ................. |plamo-translate-introduction|
+  2. Requirements ................. |plamo-translate-requirements|
+  3. Setup ........................ |plamo-translate-setup|
+  4. Commands ..................... |plamo-translate-commands|
+  5. Keymaps ...................... |plamo-translate-keymaps|
+  6. Comment translation .......... |plamo-translate-comments|
+  7. Configuration ................ |plamo-translate-configuration|
+  8. Highlights ................... |plamo-translate-highlights|
+
+==============================================================================
+1. INTRODUCTION                                  *plamo-translate-introduction*
+
+plamo-translate.nvim integrates the plamo-translate CLI
+(https://github.com/pfnet/plamo-translate-cli) with Neovim. It translates
+between Japanese and English (direction is auto-detected by default) and
+shows results in a popup window, a split, or as virtual text.
+
+==============================================================================
+2. REQUIREMENTS                                  *plamo-translate-requirements*
+
+- Neovim 0.10.0 or later
+- plamo-translate-cli installed and available in $PATH
+- A working Treesitter parser for the buffer's filetype
+  (only for comment translation, |:PlamoTranslateComments|)
+
+==============================================================================
+3. SETUP                                                *plamo-translate-setup*
+
+Call the setup function from your config: >lua
+
+  require("plamo-translate").setup({
+    -- see |plamo-translate-configuration| for all options
+    keymaps = true, -- or a table like { prefix = "<leader>t" }
+  })
+<
+==============================================================================
+4. COMMANDS                                          *plamo-translate-commands*
+
+                                                              *:PlamoTranslate*
+:PlamoTranslate [{display}]
+    Normal mode: open the interactive translation window. The left pane is
+    editable input; press CTRL-T to translate, `y` to yank, <Tab> to switch
+    panes, `q` or <Esc> to close.
+
+    Visual mode (with a range): translate the selection. {display} is
+    "popup" (floating window, default) or "virtual" (virtual text below the
+    selection). The default is `window.default_display`.
+
+                                                       *:PlamoTranslateReplace*
+:'<,'>PlamoTranslateReplace
+    Replace the selected lines with their translation. Aborts with a warning
+    if the buffer was edited or closed while the translation was running.
+
+                                                          *:PlamoTranslateLine*
+:PlamoTranslateLine
+    Translate the current line and show the result in a popup at the cursor.
+
+                                                          *:PlamoTranslateWord*
+:PlamoTranslateWord
+    Translate the word under the cursor.
+
+                                                         *:PlamoTranslateClose*
+:PlamoTranslateClose
+    Close the translation window.
+
+                                                        *:PlamoTranslateBuffer*
+:PlamoTranslateBuffer
+    Translate the entire buffer paragraph by paragraph and show the result
+    in a vertical split. Progress is reported in a single self-updating
+    notification.
+
+                                                 *:PlamoTranslateBufferReplace*
+:PlamoTranslateBufferReplace
+    Translate the entire buffer and replace its content with the result
+    (undo works as usual). Aborts with a warning if the buffer was edited
+    during translation.
+
+                                                      *:PlamoTranslateComments*
+:PlamoTranslateComments
+    Translate all English comments in the buffer and render each
+    translation as virtual lines below the comment.
+    See |plamo-translate-comments|.
+
+    With a visual selection, translate the selected lines instead and render
+    the result as virtual text below the selection.
+
+                                                 *:PlamoTranslateCommentsClear*
+:PlamoTranslateCommentsClear
+    Remove all virtual text translations and stop the edit-sync.
+
+                                                *:PlamoTranslateCommentsToggle*
+:PlamoTranslateCommentsToggle
+    Toggle comment translations on/off.
+
+==============================================================================
+5. KEYMAPS                                            *plamo-translate-keymaps*
+
+No keymaps are created unless `keymaps` is set in setup(). With
+`keymaps = true` the following mappings are created (prefix defaults to
+<leader>t and can be changed with `keymaps = { prefix = ... }`):
+
+  {prefix}t  (n)  :PlamoTranslate            interactive window
+  {prefix}t  (v)  :PlamoTranslate            translate selection
+  {prefix}r  (v)  :PlamoTranslateReplace     replace with translation
+  {prefix}l  (n)  :PlamoTranslateLine        translate current line
+  {prefix}w  (n)  :PlamoTranslateWord        translate word under cursor
+  {prefix}c  (n)  :PlamoTranslateClose       close translation window
+  {prefix}b  (n)  :PlamoTranslateBuffer      translate buffer (split)
+  {prefix}B  (n)  :PlamoTranslateBufferReplace  replace buffer
+  {prefix}v  (n)  :PlamoTranslateCommentsToggle toggle comment translations
+
+==============================================================================
+6. COMMENT TRANSLATION                               *plamo-translate-comments*
+
+|:PlamoTranslateComments| finds comments via Treesitter, strips the comment
+markers, groups consecutive comment lines, and translates each English group.
+Results are rendered as virtual lines below the comment.
+
+After the first run the virtual text follows your edits automatically:
+
+- deleting a comment removes its translation
+- editing a comment re-translates it (the previous CLI job is cancelled)
+- unchanged comments re-render instantly from a translation cache
+
+The sync stops when you run |:PlamoTranslateCommentsClear| (or toggle off).
+
+==============================================================================
+7. CONFIGURATION                                *plamo-translate-configuration*
+
+Defaults: >lua
+
+  require("plamo-translate").setup({
+    cli = {
+      cmd = { "plamo-translate", "--no-stream" }, -- base command
+      from = "Auto", -- source language ("Auto" = auto detect)
+      to = "Auto",   -- target language ("Auto" = auto detect)
+    },
+    window = {
+      -- Display mode for :PlamoTranslate on a visual selection:
+      -- "popup" (floating window) or "virtual" (virtual text)
+      default_display = "popup",
+      position = "cursor",  -- "center" | "cursor" | "right"
+      border = "rounded",
+      wrap = true,
+      title = " Translation ",
+      title_pos = "center",
+      positions = {
+        center = { width = 0.8, height = 0.6 },
+        cursor = { width = 0.5, height = 0.4 },
+        right = { width = 0.4, height = 1.0 },
+      },
+      -- Bounds used when a window is sized to fit its content
+      fit = {
+        min_width = 0.3,
+        max_width = 0.8,
+        min_height = 0.15,
+        max_height = 0.6,
+      },
+    },
+  })
+<
+==============================================================================
+8. HIGHLIGHTS                                      *plamo-translate-highlights*
+
+                                                        *hl-PlamoTranslateVirtual*
+PlamoTranslateVirtual
+    Used for virtual text translations. Links to
+    |hl-DiagnosticVirtualTextHint| by default. To customize: >lua
+
+  vim.api.nvim_set_hl(0, "PlamoTranslateVirtual", { fg = "#7aa2f7", italic = true })
+<
+vim:tw=78:ts=8:noet:ft=help:norl:

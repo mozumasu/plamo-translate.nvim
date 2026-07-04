@@ -4,8 +4,20 @@ local translate = require("plamo-translate.translate")
 local util = require("plamo-translate.util")
 
 local ns = vim.api.nvim_create_namespace("plamo-translate-comments")
+-- translate_range 由来の virtual text は自動更新の対象外なので namespace を分ける
+local ns_range = vim.api.nvim_create_namespace("plamo-translate-range")
 
 local HL_GROUP = "PlamoTranslateVirtual"
+
+local uv = vim.uv or vim.loop
+
+-- stripped text -> translation result
+local cache = {}
+
+---@type table<integer, { active: boolean, generation: integer, timer: uv_timer_t?, augroup: integer? }>
+local state = {}
+
+local REFRESH_DEBOUNCE_MS = 300
 
 local function ensure_highlight()
   vim.api.nvim_set_hl(0, HL_GROUP, {
@@ -169,9 +181,10 @@ end
 
 ---Render translation result as virtual text for one comment range
 ---@param buf integer
+---@param namespace integer
 ---@param range table
 ---@param result string
-local function render_translation(buf, range, result)
+local function render_translation(buf, namespace, range, result)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
@@ -200,27 +213,21 @@ local function render_translation(buf, range, result)
     local prefix = i == 1 and "» " or "  "
     table.insert(virt_lines, { { prefix .. line, HL_GROUP } })
   end
-  vim.api.nvim_buf_set_extmark(buf, ns, last_row, 0, {
+  vim.api.nvim_buf_set_extmark(buf, namespace, last_row, 0, {
     virt_lines = virt_lines,
   })
 end
 
----Translate all English comments in a buffer and display results as virtual text.
----@param buf? integer Defaults to current buffer
-function M.translate_comments(buf)
-  buf = buf or vim.api.nvim_get_current_buf()
-
+---Collect English comment groups (adjacent comment lines merged) in a buffer
+---@param buf integer
+---@return table|nil groups
+---@return string|nil err
+local function collect_english_groups(buf)
   local ranges, err = find_comment_ranges(buf)
   if err then
-    util.error(err)
-    return
-  end
-  if not ranges or #ranges == 0 then
-    util.info("No comments found in buffer")
-    return
+    return nil, err
   end
 
-  -- 隣接する行のコメントをグループにまとめる
   table.sort(ranges, function(a, b)
     return a.start_row < b.start_row
   end)
@@ -246,32 +253,76 @@ function M.translate_comments(buf)
     end
   end
 
-  local targets = groups
+  return groups, nil
+end
 
-  if #targets == 0 then
-    util.info("No English comments found")
+---Render all groups: cached translations immediately, others via the CLI.
+---Stale runs are cancelled through the per-buffer generation counter.
+---@param buf integer
+---@param groups table
+---@param opts? { notify: boolean }
+local function render_groups(buf, groups, opts)
+  opts = opts or {}
+  local st = state[buf]
+  if not st then
     return
   end
 
+  st.generation = st.generation + 1
+  local gen = st.generation
+
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 
-  util.info(string.format("Translating %d comments...", #targets))
+  local pending = {}
+  for _, group in ipairs(groups) do
+    local cached = cache[group.stripped]
+    if cached then
+      render_translation(buf, ns, group, cached)
+    else
+      table.insert(pending, group)
+    end
+  end
+
+  if #pending == 0 then
+    if opts.notify then
+      util.info("Comment translation complete")
+    end
+    return
+  end
+
+  if opts.notify then
+    util.info(string.format("Translating %d comments...", #pending))
+  end
 
   local index = 1
 
+  local function is_stale()
+    local current = state[buf]
+    return not current or not current.active or current.generation ~= gen
+  end
+
   local function translate_next()
-    if index > #targets then
-      util.info("Comment translation complete")
+    if is_stale() then
+      return
+    end
+    if index > #pending then
+      if opts.notify then
+        util.info("Comment translation complete")
+      end
       return
     end
 
-    local range = targets[index]
-    translate.translate(range.stripped, function(result, terr)
+    local group = pending[index]
+    translate.translate(group.stripped, function(result, terr)
       vim.schedule(function()
+        if is_stale() then
+          return
+        end
         if terr then
           util.warn("Skipped a comment due to error: " .. tostring(terr))
         elseif result and result ~= "" then
-          render_translation(buf, range, result)
+          cache[group.stripped] = result
+          render_translation(buf, ns, group, result)
         end
         index = index + 1
         translate_next()
@@ -280,6 +331,109 @@ function M.translate_comments(buf)
   end
 
   translate_next()
+end
+
+---Re-scan comments and re-render virtual text (deleted comments disappear,
+---edited comments are re-translated, unchanged ones render from cache).
+---@param buf integer
+local function refresh(buf)
+  local st = state[buf]
+  if not st or not st.active or not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+
+  local groups = collect_english_groups(buf)
+  if not groups then
+    return
+  end
+
+  render_groups(buf, groups)
+end
+
+---Stop auto-refresh and drop per-buffer state
+---@param buf integer
+local function detach(buf)
+  local st = state[buf]
+  if not st then
+    return
+  end
+  st.active = false
+  if st.timer then
+    st.timer:stop()
+    if not st.timer:is_closing() then
+      st.timer:close()
+    end
+  end
+  if st.augroup then
+    pcall(vim.api.nvim_del_augroup_by_id, st.augroup)
+  end
+  state[buf] = nil
+end
+
+---Start watching buffer edits to keep virtual text in sync
+---@param buf integer
+local function attach(buf)
+  local st = state[buf]
+  if st then
+    st.active = true
+    st.generation = st.generation + 1
+    return
+  end
+
+  st = {
+    active = true,
+    generation = 0,
+    timer = uv.new_timer(),
+    augroup = vim.api.nvim_create_augroup("PlamoTranslateVirtualTextSync" .. buf, { clear = true }),
+  }
+  state[buf] = st
+
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = st.augroup,
+    buffer = buf,
+    callback = function()
+      local current = state[buf]
+      if not current or not current.active then
+        return
+      end
+      current.timer:stop()
+      current.timer:start(
+        REFRESH_DEBOUNCE_MS,
+        0,
+        vim.schedule_wrap(function()
+          refresh(buf)
+        end)
+      )
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+    group = st.augroup,
+    buffer = buf,
+    callback = function()
+      detach(buf)
+    end,
+  })
+end
+
+---Translate all English comments in a buffer and display results as virtual text.
+---Keeps the virtual text in sync with later edits until M.clear() is called.
+---@param buf? integer Defaults to current buffer
+function M.translate_comments(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+
+  local groups, err = collect_english_groups(buf)
+  if err then
+    util.error(err)
+    return
+  end
+  if not groups or #groups == 0 then
+    util.info("No English comments found")
+    return
+  end
+
+  attach(buf)
+  render_groups(buf, groups, { notify = true })
 end
 
 ---Translate the given line range and render the result as virtual text
@@ -316,7 +470,7 @@ function M.translate_range(buf, start_row, end_row)
     return
   end
 
-  vim.api.nvim_buf_clear_namespace(buf, ns, end_row, end_row + 1)
+  vim.api.nvim_buf_clear_namespace(buf, ns_range, end_row, end_row + 1)
 
   util.info("Translating selection...")
 
@@ -325,7 +479,7 @@ function M.translate_range(buf, start_row, end_row)
       if terr then
         util.error("Translation failed: " .. tostring(terr))
       elseif result and result ~= "" then
-        render_translation(buf, {
+        render_translation(buf, ns_range, {
           start_row = start_row,
           end_row = end_row,
           end_col = #(lines[#lines] or ""),
@@ -336,14 +490,17 @@ function M.translate_range(buf, start_row, end_row)
   end)
 end
 
----Clear all virtual text translations rendered by this module.
+---Clear all virtual text translations rendered by this module and stop
+---the edit-sync for comment translations.
 ---@param buf? integer Defaults to current buffer
 function M.clear(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
+  detach(buf)
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(buf, ns_range, 0, -1)
   util.info("Cleared comment translations")
 end
 
@@ -354,8 +511,10 @@ function M.toggle(buf)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
+  local st = state[buf]
   local existing = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {})
-  if #existing > 0 then
+  local existing_range = vim.api.nvim_buf_get_extmarks(buf, ns_range, 0, -1, {})
+  if (st and st.active) or #existing > 0 or #existing_range > 0 then
     M.clear(buf)
   else
     M.translate_comments(buf)

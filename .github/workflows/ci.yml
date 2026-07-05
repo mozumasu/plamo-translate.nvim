@@ -22,6 +22,10 @@ jobs:
           neovim: true
           version: ${{ matrix.neovim }}
 
+      # lazy.minit builds Lua 5.1 for busted via hererocks, which needs readline
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libreadline-dev
+
       - name: Cache test dependencies
         uses: actions/cache@v4
         with:

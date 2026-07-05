@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test (Neovim ${{ matrix.neovim }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim: [stable, nightly]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      # lazy.minit builds Lua 5.1 for busted via hererocks, which needs readline
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libreadline-dev
+
+      - name: Cache test dependencies
+        uses: actions/cache@v4
+        with:
+          path: .tests
+          key: tests-${{ matrix.neovim }}-${{ hashFiles('tests/minit.lua') }}
+
+      - name: Run tests
+        run: nvim -l tests/minit.lua --busted tests/
+
+  lint:
+    name: Lint (stylua)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check formatting
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check lua/ tests/

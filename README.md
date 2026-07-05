@@ -6,10 +6,11 @@ A Neovim plugin that integrates [plamo-translate-cli](https://github.com/pfnet/p
 
 - **Interactive Translation Mode** (Normal mode)
 - **Quick Translation** (Visual mode)
-  - Select text and translate instantly
+  - Select text and translate instantly, shown in a popup or as virtual text
 - **Replace selected text with translation**
 - **Inline Comment Translation** (Virtual text)
-  - Detect English comments via Treesitter and render translations next to / below each comment
+  - Detect English comments via Treesitter and render translations below each comment
+  - Stays in sync while you edit: deleted comments lose their virtual text, edited comments are re-translated, unchanged ones re-render instantly from cache
 
 ## Installation
 
@@ -69,13 +70,25 @@ When you run `:PlamoTranslate` in normal mode, a split-pane window opens:
 - `<Esc>` or `q` - Close the translation window
 - `<C-t>` - Translate the input text
 
+### Translate Selection
+
+With a visual selection, `:PlamoTranslate` translates the selected text and shows the result in a popup window. Pass `virtual` to render the result as virtual text below the selection instead:
+
+```vim
+:'<,'>PlamoTranslate virtual
+```
+
+The default display mode is configurable via `window.default_display` (`"popup"` or `"virtual"`).
+
 ### Translate Comments as Virtual Text
 
 Translate English comments in the current buffer and render the translation as virtual text without modifying the file:
 
-- `:PlamoTranslateComments` - Translate all English comments via Treesitter and display each translation as virtual text. Single-line comments are appended at end-of-line, multi-line comments are rendered as virtual lines below the comment block.
-- `:PlamoTranslateCommentsClear` - Remove all virtual text translations.
+- `:PlamoTranslateComments` - Translate all English comments via Treesitter and render each translation as virtual lines below the comment. Consecutive comment lines are grouped and translated together.
+- `:PlamoTranslateCommentsClear` - Remove all virtual text translations and stop the edit-sync.
 - `:PlamoTranslateCommentsToggle` - Toggle on/off (default keymap: `<leader>tv`).
+
+After `:PlamoTranslateComments`, the virtual text follows your edits automatically: deleting a comment removes its translation, editing a comment re-translates it, and unchanged comments re-render instantly from a translation cache without calling the CLI again.
 
 Requires a working Treesitter parser for the buffer's filetype.
 
@@ -98,6 +111,7 @@ require("plamo-translate").setup({
     to = "Auto",    -- Target language ("Auto" = auto detect)
   },
   window = {
+    default_display = "popup", -- Visual-selection result: "popup" | "virtual"
     position = "center",  -- "center" | "cursor" | "right"
     border = "rounded",   -- "single" | "double" | "rounded" | "solid" | "shadow"
     wrap = true,          -- Wrap long lines

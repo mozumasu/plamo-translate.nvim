@@ -229,7 +229,9 @@ function M.show(content, opts)
     local max_w = 0
     for _, line in ipairs(lines) do
       local w = vim.fn.strdisplaywidth(line)
-      if w > max_w then max_w = w end
+      if w > max_w then
+        max_w = w
+      end
     end
     local fit = cfg.fit or {}
     local w_ratio = math.min(fit.max_width or 0.8, math.max(fit.min_width or 0.3, (max_w + 4) / vim_width))
@@ -381,4 +383,3 @@ function M.is_open()
 end
 
 return M
-
